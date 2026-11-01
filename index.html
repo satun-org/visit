@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>แผนเดินทางเยี่ยมโรงเรียน</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  :root {
+    --bg:#f1f5f9; --card:#ffffff; --line:#e2e8f0;
+    --text:#0f172a; --muted:#64748b; --muted2:#94a3b8;
+    --primary:#2563eb; --primary-d:#1d4ed8; --primary-l:#eff6ff;
+    --green:#16a34a; --amber:#d97706; --amber-l:#fffbeb;
+    --red:#dc2626; --radius:14px; --shadow:0 1px 2px rgba(15,23,42,.05), 0 4px 16px -4px rgba(15,23,42,.08);
+  }
+  * { box-sizing:border-box; }
+  html, body { margin:0; }
+  body {
+    font-family:"Inter","Noto Sans Thai",system-ui,sans-serif;
+    background:var(--bg); color:var(--text); font-size:14px; line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* ===== Top bar ===== */
+  .topbar {
+    background:linear-gradient(135deg,#0f172a 0%,#1e3a8a 100%);
+    color:#fff; padding:18px 24px;
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+    position:sticky; top:0; z-index:1000; box-shadow:0 2px 12px rgba(15,23,42,.25);
+  }
+  .logo {
+    width:40px; height:40px; border-radius:11px; flex:none;
+    background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.22);
+    display:flex; align-items:center; justify-content:center; font-size:20px;
+  }
+  .topbar h1 { margin:0; font-size:18px; font-weight:700; letter-spacing:.2px; }
+  .topbar p { margin:2px 0 0; font-size:12.5px; color:#c7d2fe; }
+  .topbar .spacer { flex:1; }
+  .pill {
+    font-size:12px; padding:5px 11px; border-radius:999px; white-space:nowrap;
+    background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.2); color:#e0e7ff;
+  }
+
+  /* ===== Layout ===== */
+  .layout {
+    max-width:1340px; margin:0 auto; padding:20px;
+    display:grid; grid-template-columns:372px 1fr; gap:20px; align-items:start;
+  }
+  @media (max-width:1020px){ .layout { grid-template-columns:1fr; } }
+
+  .card {
+    background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+    box-shadow:var(--shadow); overflow:hidden;
+  }
+  .card-h {
+    padding:13px 18px; border-bottom:1px solid var(--line);
+    display:flex; align-items:center; gap:9px;
+    font-size:13.5px; font-weight:600; letter-spacing:.2px;
+  }
+  .card-h .ic {
+    width:26px; height:26px; border-radius:8px; background:var(--primary-l); color:var(--primary);
+    display:flex; align-items:center; justify-content:center; font-size:14px; flex:none;
+  }
+  .card-b { padding:16px 18px; }
+
+  .side { display:flex; flex-direction:column; gap:16px; position:sticky; top:86px; }
+  .main { display:flex; flex-direction:column; gap:16px; min-width:0; }
+
+  /* ===== Forms ===== */
+  .field { margin-bottom:12px; }
+  .field:last-child { margin-bottom:0; }
+  .field label {
+    display:block; font-size:12px; font-weight:600; color:var(--muted);
+    margin-bottom:5px; letter-spacing:.2px;
+  }
+  .field .hint { font-size:11.5px; color:var(--muted2); margin-top:4px; }
+  input[type=text], input[type=number], input[type=time] {
+    width:100%; padding:9px 11px; font-size:14px; font-family:inherit; color:var(--text);
+    background:#f8fafc; border:1px solid var(--line); border-radius:9px;
+    transition:border-color .15s, box-shadow .15s, background .15s;
+  }
+  input:hover { border-color:#cbd5e1; }
+  input:focus {
+    outline:none; background:#fff; border-color:var(--primary);
+    box-shadow:0 0 0 3px rgba(37,99,235,.14);
+  }
+  .row2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .row3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
+  .input-group { display:flex; gap:7px; }
+  .input-group input { flex:1; min-width:0; }
+
+  /* ===== Buttons ===== */
+  button {
+    font-family:inherit; font-size:13.5px; font-weight:600; cursor:pointer;
+    border:none; border-radius:9px; padding:9px 15px;
+    background:var(--primary); color:#fff;
+    transition:background .15s, transform .05s, box-shadow .15s;
+    box-shadow:0 1px 2px rgba(37,99,235,.35);
+  }
+  button:hover { background:var(--primary-d); }
+  button:active { transform:translateY(1px); }
+  button:focus-visible { outline:2px solid var(--primary); outline-offset:2px; }
+  button.ghost {
+    background:#f1f5f9; color:#334155; box-shadow:none; border:1px solid var(--line);
+  }
+  button.ghost:hover { background:#e2e8f0; }
+  button.tiny { padding:5px 9px; font-size:12px; border-radius:7px; }
+  button.icon {
+    width:30px; height:30px; padding:0; display:inline-flex;
+    align-items:center; justify-content:center; font-size:14px;
+    background:transparent; color:var(--muted); box-shadow:none; border:1px solid transparent;
+  }
+  button.icon:hover { background:#fee2e2; color:var(--red); }
+  button:disabled { opacity:.75; cursor:progress; }
+  button:disabled::after {
+    content:""; display:inline-block; width:12px; height:12px; margin-left:8px;
+    vertical-align:-2px; border:2px solid rgba(255,255,255,.4); border-top-color:#fff;
+    border-radius:50%; animation:spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  .btn-block { width:100%; padding:12px; font-size:14.5px; border-radius:10px; }
+
+  /* ===== Status ===== */
+  #status { font-size:13px; font-weight:500; color:var(--muted); }
+  #status.err { color:var(--red); font-weight:600; }
+  #status.ok { color:var(--green); font-weight:600; }
+  #autoStay { font-size:13px; }
+  #autoStay:empty { display:none; }
+  .infobanner {
+    display:flex; gap:9px; align-items:flex-start;
+    background:var(--primary-l); border:1px solid #bfdbfe; color:#1e40af;
+    border-radius:10px; padding:10px 13px; font-size:13px; font-weight:500;
+  }
+  #geoStatus { font-size:12px; color:var(--muted); }
+  #geoStatus:empty { display:none; }
+
+  /* ===== School list ===== */
+  .schools { display:flex; flex-direction:column; gap:8px; }
+  .inspectors { display:flex; flex-direction:column; gap:8px; }
+  .inspector {
+    display:flex; align-items:center; gap:8px;
+    border:1px solid var(--line); border-radius:10px; padding:8px 10px; background:#fff;
+    transition:border-color .15s, box-shadow .15s;
+  }
+  .inspector:hover { border-color:#cbd5e1; box-shadow:0 1px 5px rgba(15,23,42,.07); }
+  .inspector input { flex:1; min-width:0; font-weight:500; }
+  .school {
+    border:1px solid var(--line); border-radius:10px; padding:9px 10px; background:#fff;
+    transition:border-color .15s, box-shadow .15s;
+  }
+  .school:hover { border-color:#cbd5e1; box-shadow:0 1px 5px rgba(15,23,42,.07); }
+  .s-top { display:flex; align-items:center; gap:8px; }
+  .s-top input { flex:1; min-width:0; font-weight:500; }
+  .s-coords { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px; padding-left:32px; }
+  .s-c label {
+    display:block; font-size:10px; font-weight:700; letter-spacing:.6px; color:var(--muted2);
+    text-transform:uppercase; margin-bottom:3px;
+  }
+  .s-c input { padding:6px 8px; font-size:13px; font-variant-numeric:tabular-nums; }
+  .idx {
+    width:24px; height:24px; flex:none; border-radius:50%; background:var(--primary-l); color:var(--primary);
+    font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center;
+  }
+  .add-btn {
+    width:100%; margin-top:10px; background:#fff; color:var(--primary);
+    border:1.5px dashed #93c5fd; box-shadow:none; padding:9px;
+  }
+  .add-btn:hover { background:var(--primary-l); }
+
+  /* ===== Stats ===== */
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; }
+  .stat {
+    background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+    padding:14px 16px; box-shadow:var(--shadow); display:flex; gap:12px; align-items:center;
+  }
+  .stat .ic {
+    width:38px; height:38px; border-radius:10px; flex:none;
+    display:flex; align-items:center; justify-content:center; font-size:17px;
+    background:var(--primary-l);
+  }
+  .stat b { display:block; font-size:17px; font-weight:700; letter-spacing:-.3px; }
+  .stat span { font-size:11.5px; color:var(--muted); font-weight:500; }
+
+  /* ===== Map ===== */
+  .map-wrap { position:relative; }
+  #map { height:470px; background:#e2e8f0; }
+  .legend {
+    position:absolute; z-index:600; left:12px; bottom:12px;
+    background:rgba(255,255,255,.94); backdrop-filter:blur(4px);
+    border:1px solid var(--line); border-radius:10px; padding:9px 13px;
+    font-size:12px; box-shadow:var(--shadow); color:#334155;
+  }
+  .legend div { display:flex; align-items:center; gap:7px; margin:3px 0; }
+  .lg-dot { width:11px; height:11px; border-radius:50%; background:#0f172a; border:2px solid #fff; box-shadow:0 0 0 1px #94a3b8; }
+  .lg-num { width:14px; height:14px; border-radius:50%; background:var(--primary); color:#fff; font-size:9px; font-weight:700; display:flex; align-items:center; justify-content:center; }
+  .lg-line { width:16px; height:3px; border-radius:2px; background:var(--primary); }
+  .numicon {
+    background:var(--primary); color:#fff; border-radius:50%; width:27px; height:27px;
+    display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700;
+    border:2.5px solid #fff; box-shadow:0 2px 6px rgba(15,23,42,.45);
+  }
+
+  /* ===== Schedule ===== */
+  .sched-head {
+    padding:12px 18px; border-bottom:1px solid var(--line);
+    display:flex; flex-direction:column; gap:7px; background:#fcfdff;
+  }
+  .sh-row { display:flex; gap:12px; align-items:baseline; flex-wrap:wrap; font-size:13.5px; }
+  .sh-lbl {
+    flex:none; min-width:84px; font-size:10.5px; font-weight:700; letter-spacing:.6px;
+    text-transform:uppercase; color:var(--muted2);
+  }
+  .sh-val { color:#334155; font-weight:500; }
+  .sh-val b { color:var(--text); font-weight:600; }
+  .table-scroll { overflow-x:auto; }
+  .sched { width:100%; border-collapse:collapse; font-size:13.5px; }
+  .sched th {
+    text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.6px;
+    color:var(--muted2); font-weight:600; padding:10px 12px; background:#f8fafc;
+    border-bottom:1px solid var(--line); white-space:nowrap;
+  }
+  .sched td { padding:10px 12px; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
+  .sched tr:last-child td { border-bottom:none; }
+  .sched tr:hover td { background:#f8fafc; }
+  .sched .time { font-variant-numeric:tabular-nums; font-weight:600; white-space:nowrap; color:#334155; }
+  .sched .num { font-variant-numeric:tabular-nums; color:var(--muted); white-space:nowrap; }
+  .sched .step {
+    width:22px; height:22px; border-radius:50%; font-size:11px; font-weight:700;
+    display:flex; align-items:center; justify-content:center; color:#fff; background:#cbd5e1;
+  }
+  .badge {
+    display:inline-block; font-size:10.5px; font-weight:700; letter-spacing:.4px;
+    padding:2.5px 8px; border-radius:999px; margin-right:8px; vertical-align:1px;
+    text-transform:uppercase;
+  }
+  .badge.drive  { background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; }
+  .badge.visit  { background:var(--primary-l); color:var(--primary-d); border:1px solid #bfdbfe; }
+  .badge.lunch  { background:var(--amber-l); color:var(--amber); border:1px solid #fde68a; }
+  .tr-visit td { background:#f8fbff; }
+  .tr-visit:hover td { background:#f1f7ff; }
+  .tr-lunch td { background:var(--amber-l); }
+  .tr-lunch:hover td { background:#fef6e7; }
+  .act { color:var(--text); font-weight:500; }
+
+  /* ===== Footer links ===== */
+  .foot {
+    display:flex; gap:18px; align-items:center; flex-wrap:wrap;
+    padding:13px 18px; border-top:1px solid var(--line); background:#f8fafc; font-size:13px;
+  }
+  .foot .lbl { color:var(--muted); font-weight:600; font-size:12px; }
+  .foot a {
+    color:var(--primary); font-weight:600; text-decoration:none;
+    padding:6px 12px; background:#fff; border:1px solid var(--line); border-radius:8px;
+    transition:border-color .15s, background .15s;
+  }
+  .foot a:hover { border-color:var(--primary); background:var(--primary-l); }
+
+  .note { font-size:12px; color:var(--muted); margin:0; }
+  .disclaimer {
+    max-width:1340px; margin:0 auto; padding:0 20px 26px;
+    font-size:12px; color:var(--muted2); text-align:center;
+  }
+  #result { display:none; flex-direction:column; gap:16px; }
+  #result.on { display:flex; }
+
+  /* ===== Share view (landing style) ===== */
+  body.share-mode .topbar { display:none; }
+  body.share-mode .side { display:none; }
+  body.share-mode .layout { grid-template-columns:1fr; max-width:1000px; }
+  body.share-mode .table-scroll { display:none; }
+
+  .hero {
+    display:none; position:relative; overflow:hidden; color:#fff; text-align:center;
+    background:linear-gradient(135deg,#0f172a 0%,#1e3a8a 52%,#2563eb 100%);
+    padding:54px 20px 46px;
+  }
+  .hero::before { content:""; position:absolute; width:440px; height:440px; border-radius:50%;
+    background:radial-gradient(circle, rgba(59,130,246,.38), transparent 70%); top:-170px; right:-130px; }
+  .hero::after { content:""; position:absolute; width:340px; height:340px; border-radius:50%;
+    background:radial-gradient(circle, rgba(147,197,253,.28), transparent 70%); bottom:-150px; left:-90px; }
+  .hero-inner { position:relative; max-width:840px; margin:0 auto; }
+  .hero-actions { position:absolute; top:0; right:0; display:flex; gap:8px; z-index:2; }
+  .hero-edit {
+    background:rgba(255,255,255,.14); color:#fff;
+    border:1px solid rgba(255,255,255,.32); box-shadow:none; font-size:12.5px;
+    padding:7px 14px; border-radius:999px;
+  }
+  .hero-edit:hover { background:rgba(255,255,255,.28); }
+  .hero-tag {
+    display:inline-block; font-size:11.5px; font-weight:700; letter-spacing:1.2px; text-transform:uppercase;
+    background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.3);
+    padding:5px 14px; border-radius:999px; color:#e0e7ff;
+  }
+  .hero h1 { margin:18px 0 8px; font-size:34px; letter-spacing:-.5px; }
+  .hero-sub { margin:0; color:#bfdbfe; font-size:15.5px; }
+  .hero-chips { display:flex; gap:9px; justify-content:center; flex-wrap:wrap; margin-top:22px; }
+  .hero-chips span {
+    background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.24);
+    padding:7px 14px; border-radius:999px; font-size:13.5px; font-weight:600; color:#eff6ff;
+  }
+  .hero-insp { margin-top:26px; }
+  .hi-lbl { font-size:11px; font-weight:700; letter-spacing:1.4px; text-transform:uppercase; color:#93c5fd; }
+  .hi-names { display:flex; gap:9px; justify-content:center; flex-wrap:wrap; margin-top:10px; }
+  .hi-names span {
+    background:#fff; color:#1e3a8a; font-weight:600; font-size:13.5px;
+    padding:7px 16px; border-radius:999px; box-shadow:0 4px 14px rgba(15,23,42,.28);
+  }
+  .hero-status { margin-top:16px; min-height:20px; font-size:13.5px; font-weight:600; }
+  #shareStatus { font-weight:600; font-size:13.5px; }
+  #shareStatus.ok { color:#86efac; }
+  #shareStatus.err { color:#fca5a5; }
+
+  /* Timeline สำหรับหน้าแชร์ */
+  #shareTimeline { display:none; padding:18px 22px 10px; }
+  body.share-mode #shareTimeline { display:block; }
+  .tl { list-style:none; margin:0; padding:0; position:relative; }
+  .tl::before { content:""; position:absolute; left:16px; top:10px; bottom:10px; width:2px; background:#e2e8f0; }
+  .tl-item { position:relative; padding:0 0 14px 46px; }
+  .tl-dot {
+    position:absolute; left:8px; top:7px; width:18px; height:18px; border-radius:50%;
+    background:#94a3b8; border:3px solid #fff; box-shadow:0 0 0 2px #e2e8f0;
+  }
+  .tl-item.visit .tl-dot { background:var(--primary); box-shadow:0 0 0 2px #bfdbfe; }
+  .tl-item.lunch .tl-dot { background:var(--amber); box-shadow:0 0 0 2px #fde68a; }
+  .tl-card {
+    background:#fff; border:1px solid var(--line); border-radius:12px; padding:11px 15px;
+    box-shadow:var(--shadow); display:flex; gap:14px; align-items:center; flex-wrap:wrap;
+  }
+  .tl-item.visit .tl-card { background:#f8fbff; border-color:#dbeafe; }
+  .tl-item.lunch .tl-card { background:var(--amber-l); border-color:#fde68a; }
+  .tl-time { font-weight:700; font-variant-numeric:tabular-nums; color:#0f172a; min-width:112px; font-size:13.5px; }
+  .tl-act { flex:1; min-width:220px; font-size:13.5px; color:#334155; font-weight:500; }
+  .tl-meta { display:flex; gap:12px; font-size:12.5px; color:var(--muted); font-variant-numeric:tabular-nums; white-space:nowrap; }  @media (max-width:1020px){ .side { position:static; } #map { height:360px; } }
+
+  /* ===== พิมพ์/บันทึกเป็น PDF ===== */
+  @media print {
+    @page { margin:10mm; }
+    * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
+    body { background:#fff; }
+    .topbar, .side, .hero-actions, .foot { display:none !important; }
+    .layout { grid-template-columns:1fr !important; max-width:none !important; padding:0 !important; gap:12px !important; }
+    .hero { padding:30px 16px 26px; }
+    .card, .stat { box-shadow:none !important; break-inside:avoid; }
+    #map { height:300px; }
+    .leaflet-control-zoom { display:none !important; }
+    .tl-item, .tl-card, .sched tr { break-inside:avoid; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo">🚌</div>
+  <div>
+    <h1>แผนเดินทางเยี่ยมโรงเรียน</h1>
+    <p>จัดลำดับแวะโรงเรียนที่ใกล้ที่สุดถัดไป · เส้นทางถนนจริงจาก OpenStreetMap</p>
+  </div>
+  <div class="spacer"></div>
+  <span class="pill" id="pillDep">🛫 ออก 07.00 น.</span>
+  <span class="pill" id="pillTarget">🎯 เป้าหมายออกโรงเรียนสุดท้าย 16.00 น.</span>
+</div>
+
+<header class="hero" id="shareHero" style="display:none">
+  <div class="hero-inner">
+    <div class="hero-actions">
+      <button class="hero-edit" id="printPdf">🖨 บันทึกเป็น PDF</button>
+      <button class="hero-edit" id="openEdit">เปิดในโหมดแก้ไข ↗</button>
+    </div>
+    <span class="hero-tag">🔗 มุมมองแชร์ · อ่านอย่างเดียว</span>
+    <h1>แผนเดินทางเยี่ยมโรงเรียน</h1>
+    <p class="hero-sub" id="heroRoute"></p>
+    <div class="hero-chips" id="heroChips"></div>
+    <div class="hero-insp">
+      <div class="hi-lbl">ผู้ตรวจเยี่ยม</div>
+      <div class="hi-names" id="heroInspectors"></div>
+    </div>
+    <div class="hero-status"><span id="shareStatus"></span></div>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- ================= Sidebar ================= -->
+  <aside class="side">
+
+    <section class="card">
+      <div class="card-h"><span class="ic">🧑‍💼</span> การตั้งค่าผู้ตรวจเยี่ยม</div>
+      <div class="card-b">
+        <div class="inspectors" id="inspectorList"></div>
+        <button class="add-btn" id="addInspector">+ เพิ่มผู้ตรวจเยี่ยม</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-h"><span class="ic">⚙️</span> การตั้งค่าการเดินทาง</div>
+      <div class="card-b">
+        <div class="field">
+          <label>ต้นทาง (ชื่อสถานที่)</label>
+          <input type="text" id="originName" value="สำนักงานเขตพื้นที่การศึกษาประถมศึกษาสตูล">
+        </div>
+        <div class="row2">
+          <div class="field"><label>ละติจูด</label><input type="number" step="any" id="originLat" value="6.6434"></div>
+          <div class="field"><label>ลองจิจูด</label><input type="number" step="any" id="originLon" value="100.0735"></div>
+        </div>
+        <div class="field">
+          <label>ค้นพิกัดต้นทางจากชื่อ</label>
+          <div class="input-group">
+            <input type="text" id="originQuery" placeholder="เช่น สพป.สตูล ต.คลองขุด อ.เมืองสตูล">
+            <button class="ghost" id="geoOrigin">ค้น</button>
+          </div>
+        </div>
+
+        <div class="field" style="margin-top:14px">
+          <label>วันเดินทาง</label>
+          <input type="date" id="travelDate">
+        </div>
+
+        <div class="row3" style="margin-top:10px">
+          <div class="field"><label>ออกเดินทาง</label><input type="time" id="depTime" value="07:00"></div>
+          <div class="field"><label>ความเร็ว (กม./ชม.)</label><input type="number" id="speed" value="60" min="10" max="130"></div>
+          <div class="field"><label>อยู่โรงเรียน (นาที)</label><input type="number" id="stay" value="30" min="5" max="240"></div>
+        </div>
+
+        <div class="row2">
+          <div class="field"><label>พักกลางวัน เริ่ม</label><input type="time" id="lunchStart" value="12:00"></div>
+          <div class="field"><label>พักกลางวัน สิ้นสุด</label><input type="time" id="lunchEnd" value="13:00"></div>
+        </div>
+
+        <div class="field" style="margin-top:4px">
+          <label>ออกจากโรงเรียนสุดท้าย ไม่เกินเวลา</label>
+          <input type="time" id="targetLast" value="16:00">
+          <div class="hint">เว้นว่าง = ใช้เวลาอยู่ที่โรงเรียนตามช่องด้านบน · ถ้ากำหนด ระบบจะคำนวณเวลาอยู่ที่โรงเรียนให้พอเหมาะอัตโนมัติ</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-h"><span class="ic">🏫</span> รายการโรงเรียน</div>
+      <div class="card-b">
+        <div class="schools" id="schoolTable"></div>
+        <button class="add-btn" id="addSchool">+ เพิ่มโรงเรียนใหม่</button>
+        <div id="geoStatus" style="margin-top:8px"></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-b">
+        <button class="btn-block" id="calc">คำนวณเส้นทาง</button>
+        <div style="margin-top:10px; min-height:18px"><span id="status"></span></div>
+        <div id="autoStay" style="margin-top:8px"></div>
+      </div>
+    </section>
+
+  </aside>
+
+  <!-- ================= Main ================= -->
+  <section class="main">
+
+    <div class="stats" id="summary"></div>
+
+    <div id="result">
+
+      <div class="card">
+        <div class="card-h"><span class="ic">🗓</span> ตารางเวลาการเดินทาง</div>
+        <div class="sched-head" id="schedHead"></div>
+        <div id="shareTimeline"></div>
+        <div class="table-scroll">
+          <table class="sched" id="schedule"></table>
+        </div>
+      </div>
+
+      <div class="card map-wrap">
+        <div class="card-h"><span class="ic">🗺</span> แผนที่เส้นทาง</div>
+        <div id="map"></div>
+        <div class="legend">
+          <div><span class="lg-dot"></span> ต้นทาง / จุดหมาย</div>
+          <div><span class="lg-line"></span> เส้นทางขับรถ</div>
+          <div><span class="lg-num">1</span> ลำดับการแวะโรงเรียน</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="foot">
+          <span id="links" style="display:flex;gap:14px;align-items:center;flex-wrap:wrap"></span>
+          <button class="ghost" id="copyShare" style="margin-left:auto">🔗 คัดลอกลิงก์แชร์</button>
+        </div>
+      </div>
+
+    </div>
+
+  </section>
+</div>
+
+<p class="disclaimer">ระยะทางและเส้นทางมาจาก OSRM / OpenStreetMap อาจต่างจาก Google Maps เล็กน้อย · เวลาขับ = ระยะทาง ÷ ความเร็วที่กำหนด · ไม่รวมเวลาติดสัญญาณจริง</p>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+
+const DEFAULT_SCHOOLS = [
+  { name:"โรงเรียนบ้านบากันโต๊ะทิด", lat:6.78155,  lon:99.828787 },
+  { name:"โรงเรียนบ้านโคกพะยอม",     lat:6.82086,  lon:99.80794  },
+  { name:"โรงเรียนบ้านปากละงู",       lat:6.839406, lon:99.785448 },
+  { name:"โรงเรียนบ้านท่าชะมวง",     lat:6.803593, lon:99.811677 },
+  { name:"โรงเรียนบ้านนาพญา",         lat:6.846183, lon:99.832165 },
+  { name:"โรงเรียนบ้านเกาะยวน",       lat:6.873764, lon:99.808275 },
+  { name:"โรงเรียนบ้านในเมือง",       lat:6.862066, lon:99.793845 },
+  { name:"โรงเรียนบ้านปากบาง",       lat:6.82631,  lon:99.79223  },
+];
+
+/* ---------- helpers ---------- */
+const pad = n => String(n).padStart(2,"0");
+const toMin = hhmm => { const [h,m] = hhmm.split(":").map(Number); return h*60+m; };
+const fmt = min => { min = Math.round(min); const h = Math.floor(min/60), m = min%60; return pad(h)+"."+pad(m); };
+const thaiDate = v => {
+  if (!v) return "";
+  const [y, m, d] = v.split("-").map(Number);
+  if (!y || !m) return "";
+  const months = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+  return d + " " + months[m-1] + " " + (y + 543);
+};
+const esc = s => s.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const haversine = (a,b) => {
+  const R = 6371, r = Math.PI/180;
+  const dLat = (b.lat-a.lat)*r, dLon = (b.lon-a.lon)*r;
+  const s = Math.sin(dLat/2)**2 + Math.cos(a.lat*r)*Math.cos(b.lat*r)*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(s));
+};
+
+/* ---------- localStorage: บันทึก/โหลดข้อมูลไม่ให้หายตอนรีเฟรช ---------- */
+const LS_KEY = "schoolTripPlanner.v1";
+const LS_SETTINGS = ["originName","originLat","originLon","travelDate","depTime","speed","stay","lunchStart","lunchEnd","targetLast"];
+let shareMode = false; // เปิดจากลิงก์แชร์ → ห้ามเขียนทับข้อมูลบนเครื่อง
+function saveState() {
+  if (shareMode) return;
+  try {
+    const settings = {};
+    for (const id of LS_SETTINGS) { const el = $(id); if (el) settings[id] = el.value; }
+    localStorage.setItem(LS_KEY, JSON.stringify({ inspectors: INSPECTORS, schools: DEFAULT_SCHOOLS, settings }));
+  } catch (e) { /* เข้าถึง storage ไม่ได้ → ข้าม */ }
+}
+function applyState(d) {
+  if (Array.isArray(d.inspectors)) { INSPECTORS.length = 0; d.inspectors.forEach(x => INSPECTORS.push(String(x))); }
+  if (Array.isArray(d.schools)) {
+    DEFAULT_SCHOOLS.length = 0;
+    d.schools.forEach(s => DEFAULT_SCHOOLS.push({ name: String(s.name ?? ""), lat: Number(s.lat), lon: Number(s.lon) }));
+  }
+  if (d.settings) for (const [id, v] of Object.entries(d.settings)) { const el = $(id); if (el && v != null) el.value = v; }
+}
+function loadState() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return;
+    applyState(JSON.parse(raw));
+  } catch (e) { /* ข้อมูลเสีย → ใช้ค่าเริ่มต้น */ }
+}
+function encodeShare() {
+  const settings = {};
+  for (const id of LS_SETTINGS) { const el = $(id); if (el) settings[id] = el.value; }
+  const json = JSON.stringify({ v:1, inspectors: [...INSPECTORS], schools: [...DEFAULT_SCHOOLS], settings });
+  const bytes = new TextEncoder().encode(json);
+  let bin = ""; for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin);
+}
+function parseShare() {
+  const m = location.hash.match(/#share=([^&]+)/);
+  if (!m) return null;
+  try {
+    const bin = atob(m[1]);
+    const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+    return JSON.parse(new TextDecoder().decode(bytes));
+  } catch (e) { return null; }
+}
+document.addEventListener("input", e => { if (e.target && e.target.tagName === "INPUT") saveState(); });
+
+/* ---------- inspectors ---------- */
+const INSPECTORS = ["นางปารมี ใบหลี", "นางสาวสุดารัตน์ เพชรรัตน์", "นายอิสมาแอล เหร็มเหมาะ"];
+const sharedPlan = parseShare();
+if (sharedPlan) { shareMode = true; applyState(sharedPlan); } // ลิงก์แชร์มาก่อนข้อมูลบนเครื่อง
+else loadState(); // โหลดข้อมูลที่เคยบันทึกไว้ก่อนแสดงผล
+if (!shareMode && !$('travelDate').value) $('travelDate').value = new Date().toISOString().slice(0,10); // วันเริ่มต้น = วันนี้
+function renderInspectors() {
+  const wrap = $("inspectorList");
+  wrap.innerHTML = "";
+  INSPECTORS.forEach((name, i) => {
+    const row = document.createElement("div");
+    row.className = "inspector";
+    row.innerHTML = `
+      <span class="idx">${i+1}</span>
+      <input type="text" value="${esc(name)}" placeholder="ชื่อ – ตำแหน่ง ผู้ตรวจเยี่ยม">
+      <button class="icon del" title="ลบผู้ตรวจเยี่ยมคนนี้">✕</button>`;
+    row.querySelector("input").addEventListener("input", e => { INSPECTORS[i] = e.target.value; });
+    row.querySelector(".del").addEventListener("click", () => { INSPECTORS.splice(i,1); renderInspectors(); });
+    wrap.appendChild(row);
+  });
+  saveState();
+}
+$("addInspector").addEventListener("click", () => {
+  INSPECTORS.push("");
+  renderInspectors();
+  const rows = $("inspectorList").querySelectorAll(".inspector");
+  rows[rows.length-1].querySelector("input").focus();
+});
+renderInspectors();
+
+/* ---------- schools table ---------- */
+function renderSchools() {
+  const tb = $("schoolTable");
+  tb.innerHTML = "";
+  DEFAULT_SCHOOLS.forEach((s, i) => {
+    const tr = document.createElement("div");
+    tr.className = "school";
+    tr.innerHTML = `
+      <div class="s-top">
+        <span class="idx">${i+1}</span>
+        <input type="text" data-f="name" value="${esc(s.name)}" placeholder="ชื่อโรงเรียน">
+        <button class="icon geo" title="ค้นพิกัดจากชื่อ">📍</button>
+        <button class="icon del" title="ลบโรงเรียนนี้">✕</button>
+      </div>
+      <div class="s-coords">
+        <div class="s-c"><label>ละติจูด</label><input type="number" step="any" data-f="lat" value="${s.lat}"></div>
+        <div class="s-c"><label>ลองจิจูด</label><input type="number" step="any" data-f="lon" value="${s.lon}"></div>
+      </div>`;
+    tr.querySelectorAll("input").forEach(inp =>
+      inp.addEventListener("input", () => {
+        const f = inp.dataset.f;
+        s[f] = (f === "name") ? inp.value : parseFloat(inp.value);
+      }));
+    tr.querySelector(".geo").addEventListener("click", async () => {
+      const btn = tr.querySelector(".geo"); btn.disabled = true;
+      $("geoStatus").textContent = "🔍 กำลังค้นพิกัด…";
+      try {
+        const q = tr.querySelector('[data-f="name"]').value + " ประเทศไทย";
+        const r = await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + encodeURIComponent(q));
+        const j = await r.json();
+        if (!j.length) throw new Error("not found");
+        const newLat = parseFloat(j[0].lat), newLon = parseFloat(j[0].lon);
+        const origin = { lat: parseFloat($("originLat").value) || 6.64, lon: parseFloat($("originLon").value) || 100.07 };
+        const far = haversine(origin, { lat:newLat, lon:newLon });
+        if (far > 80 && !confirm("พิกัดที่ได้อยู่ห่างต้นทาง " + Math.round(far) + " กม.\n(" + j[0].display_name.slice(0,90) + ")\n\nใช้พิกัดนี้หรือไม่?")) {
+          $("geoStatus").textContent = "ยกเลิก — ไม่ได้เปลี่ยนพิกัด";
+          btn.disabled = false;
+          return;
+        }
+        s.lat = newLat; s.lon = newLon;
+        tr.querySelector('[data-f="lat"]').value = s.lat.toFixed(6);
+        tr.querySelector('[data-f="lon"]').value = s.lon.toFixed(6);
+        saveState();
+        $("geoStatus").textContent = "✓ " + j[0].display_name.slice(0,80);
+      } catch (e) { $("geoStatus").textContent = "ไม่พบพิกัด: " + e.message; }
+      finally { btn.disabled = false; }
+    });
+    tr.querySelector(".del").addEventListener("click", () => { DEFAULT_SCHOOLS.splice(i,1); renderSchools(); });
+    tb.appendChild(tr);
+  });
+  saveState();
+}
+$("addSchool").addEventListener("click", () => {
+  DEFAULT_SCHOOLS.push({ name:"", lat:6.6, lon:100.0 });
+  renderSchools();
+  const rows = $("schoolTable").querySelectorAll(".school");
+  rows[rows.length-1].querySelector("input").focus();
+});
+renderSchools();
+
+$("geoOrigin").addEventListener("click", async () => {
+  const btn = $("geoOrigin"); btn.disabled = true;
+  $("geoStatus").textContent = "🔍 กำลังค้นพิกัดต้นทาง…";
+  try {
+    const q = $("originQuery").value.trim() + " ประเทศไทย";
+    const r = await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + encodeURIComponent(q));
+    const j = await r.json();
+    if (!j.length) throw new Error("not found");
+    $("originLat").value = parseFloat(j[0].lat).toFixed(6);
+    $("originLon").value = parseFloat(j[0].lon).toFixed(6);
+    saveState();
+    $("geoStatus").textContent = "✓ " + j[0].display_name.slice(0,80);
+  } catch (e) { $("geoStatus").textContent = "ไม่พบพิกัด: " + e.message; }
+  finally { btn.disabled = false; }
+});
+
+/* ---------- map ---------- */
+const map = L.map("map").setView([6.75, 99.9], 10);
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+}).addTo(map);
+let routeLayer = null, markerLayer = L.layerGroup().addTo(map);
+
+function drawMap(points, order, geo) {
+  markerLayer.clearLayers();
+  if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
+  const line = geo || points.map(p => [p.lat, p.lon]);
+  routeLayer = L.polyline(line, { color:"#2563eb", weight:4.5, opacity:.9, lineJoin:"round" }).addTo(map);
+  L.marker([points[0].lat, points[0].lon]).addTo(map)
+    .bindPopup("<b>ต้นทาง</b><br>" + esc(points[0].name));
+  order.forEach((idx, k) => {
+    const p = points[idx + 1];
+    L.marker([p.lat, p.lon], {
+      icon: L.divIcon({ className:"", html:`<div class="numicon">${k+1}</div>`, iconSize:[27,27], iconAnchor:[13,13] })
+    }).addTo(map).bindPopup(`<b>${k+1}. ${esc(p.name)}</b>`);
+  });
+  if (map.getSize().x > 0) {
+    map.fitBounds(routeLayer.getBounds(), { padding:[26,26], maxZoom:15 });
+  }
+}
+
+/* ---------- OSRM ---------- */
+async function osrmTable(points) {
+  const cs = points.map(p => p.lon + "," + p.lat).join(";");
+  const r = await fetch(`https://router.project-osrm.org/table/v1/driving/${cs}?annotations=distance`);
+  if (!r.ok) throw new Error("OSRM table " + r.status);
+  const j = await r.json();
+  if (j.code !== "Ok") throw new Error(j.code);
+  return j.distances;
+}
+async function osrmRoute(points) {
+  const cs = points.map(p => p.lon + "," + p.lat).join(";");
+  const r = await fetch(`https://router.project-osrm.org/route/v1/driving/${cs}?overview=full&geometries=geojson`);
+  if (!r.ok) throw new Error("OSRM route " + r.status);
+  const j = await r.json();
+  if (j.code !== "Ok") throw new Error(j.code);
+  return j.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+}
+function fallbackMatrix(points) {
+  return points.map(a => points.map(b => haversine(a,b) * 1.3));
+}
+
+/* ---------- ordering: farthest first, then nearest neighbor ---------- */
+function buildOrder(mat) {
+  // mat[0] = ระยะจากต้นทางไปยังจุด i+1 → โรงเรียนลำดับ i อยู่คอลัมน์ i+1
+  const n = mat[0].length - 1;
+  let start = 0;
+  for (let i = 0; i < n; i++) if (mat[0][i+1] > mat[0][start+1]) start = i;
+  const order = [start], used = new Set([start]);
+  while (order.length < n) {
+    const last = order[order.length - 1];
+    let best = -1, bd = Infinity;
+    for (let j = 0; j < n; j++) if (!used.has(j) && mat[last+1][j+1] < bd) { bd = mat[last+1][j+1]; best = j; }
+    order.push(best); used.add(best);
+  }
+  return order;
+}
+
+/* ---------- schedule ---------- */
+function makeSchedule(pts, order, km, stay, cfg) {
+  // km: [origin→first, between…, last→origin]
+  const ev = [];
+  let t = cfg.dep, lunchDone = false, departLast = null;
+  const originName = pts[0].name;
+  const doLunch = at => {
+    const s = Math.max(t, cfg.lunchStart), e = Math.max(s, cfg.lunchEnd);
+    ev.push({ type:"lunch", label:"พักกลางวัน", start:s, end:e });
+    t = e; lunchDone = true;
+  };
+  for (let i = 0; i < order.length; i++) {
+    const p = pts[order[i] + 1];
+    const from = i === 0 ? originName : pts[order[i-1] + 1].name;
+    const dur = km[i] / cfg.speed * 60;
+    ev.push({ type:"travel", label: from + " → " + p.name, start:t, end:t+dur, km:km[i] });
+    t += dur;
+    let remain = stay;
+    if (!lunchDone && t >= cfg.lunchStart && t < cfg.lunchEnd) doLunch(p.name);
+    while (remain > 0.01) {
+      if (!lunchDone && t < cfg.lunchStart && t + remain > cfg.lunchStart) {
+        const part = cfg.lunchStart - t;
+        ev.push({ type:"stay", label:"อยู่ที่ " + p.name, start:t, end:t+part, minutes:part });
+        t += part; remain -= part;
+        doLunch(p.name); continue;
+      }
+      if (!lunchDone && t >= cfg.lunchStart && t < cfg.lunchEnd) { doLunch(p.name); continue; }
+      ev.push({ type:"stay", label:"อยู่ที่ " + p.name, start:t, end:t+remain, minutes:remain });
+      t += remain; remain = 0;
+      departLast = t;
+    }
+  }
+  const li = order.length; // return leg index in km[]
+  const backDur = km[li] / cfg.speed * 60;
+  ev.push({ type:"travel", label: pts[order[order.length-1] + 1].name + " → " + originName, start:t, end:t+backDur, km:km[li] });
+  t += backDur;
+  return { events: ev, end: t, departLast };
+}
+
+/* ---------- main ---------- */
+$("calc").addEventListener("click", async () => {
+  const btn = $("calc"), status = $("status");
+  btn.disabled = true; status.className = ""; status.textContent = "⏳ กำลังคำนวณเส้นทาง…";
+  $("result").classList.remove("on"); $("autoStay").textContent = "";
+  try {
+    const origin = { name: $("originName").value || "ต้นทาง",
+                     lat: parseFloat($("originLat").value), lon: parseFloat($("originLon").value) };
+    if (!isFinite(origin.lat) || !isFinite(origin.lon)) throw new Error("พิกัดต้นทางไม่ถูกต้อง");
+    const schools = DEFAULT_SCHOOLS.filter(s => s.name.trim() && isFinite(s.lat) && isFinite(s.lon));
+    if (schools.length < 1) throw new Error("ต้องมีโรงเรียนอย่างน้อย 1 แห่ง");
+
+    const cfg = {
+      dep: toMin($("depTime").value || "07:00"),
+      speed: Math.max(10, parseFloat($("speed").value) || 60),
+      stay: Math.max(5, parseFloat($("stay").value) || 30),
+      lunchStart: toMin($("lunchStart").value || "12:00"),
+      lunchEnd: toMin($("lunchEnd").value || "13:00"),
+      target: $("targetLast").value ? toMin($("targetLast").value) : null,
+    };
+    if (cfg.lunchEnd <= cfg.lunchStart) throw new Error("เวลาพักกลางวันไม่ถูกต้อง");
+
+    const pts = [origin, ...schools];
+    let mat, warn = "";
+    try { mat = await osrmTable(pts);           // OSRM คืนระยะทางเป็นเมตร → แปลงเป็น กม.
+          mat = mat.map(row => row.map(m => m / 1000)); }
+    catch (e) { mat = fallbackMatrix(pts); warn = "⚠ ต่อ OSRM ไม่สำเร็จ ใช้ระยะทางเส้นตรง ×1.3 แทน (" + e.message + ")"; }
+
+    const order = buildOrder(mat);
+    const km = [ mat[0][order[0]+1] ];
+    for (let i = 1; i < order.length; i++) km.push(mat[order[i-1]+1][order[i]+1]);
+    km.push(mat[order[order.length-1]+1][0]);
+
+    // solve stay for target departure from last school
+    let stay = cfg.stay;
+    if (cfg.target) {
+      const firstArrival = cfg.dep + km[0] / cfg.speed * 60;
+      const inter = km.slice(1, order.length).reduce((a,b) => a+b, 0);
+      stay = (cfg.target - firstArrival - inter - (cfg.lunchEnd - cfg.lunchStart)) / order.length;
+      if (stay < 5) throw new Error("เวลาไม่พอสำหรับเป้าหมายที่กำหนด (ต้องอย่างน้อย 5 นาที/โรงเรียน)");
+      for (let k = 0; k < 6; k++) {
+        const s = makeSchedule(pts, order, km, stay, cfg);
+        const err = cfg.target - s.departLast;
+        if (Math.abs(err) < 0.5) break;
+        stay += err / order.length;
+        if (stay < 5) break;
+      }
+      $("autoStay").innerHTML = `<div class="infobanner"><span>⏱</span><div>เวลาอยู่ที่โรงเรียนที่คำนวณได้: <b>${stay.toFixed(1)} นาที/แห่ง</b> (×${order.length} แห่ง) เพื่อให้ออกจากโรงเรียนสุดท้ายตรง <b>${fmt(cfg.target)} น.</b></div></div>`;
+    }
+
+    const sch = makeSchedule(pts, order, km, stay, cfg);
+
+    // route geometry for map
+    let geo = null;
+    try { geo = await osrmRoute([origin, ...order.map(i => schools[i]), origin]); }
+    catch (e) { /* straight line fallback */ }
+
+    renderSummary(sch, km, order.length, stay, cfg, origin);
+    renderSchedule(sch.events, cfg);
+    renderLinks(origin, order, schools);
+    drawMap(pts, order, geo);
+    status.className = warn ? "err" : "ok";
+    status.textContent = warn || "✓ คำนวณเสร็จเรียบร้อย";
+    $("result").classList.add("on");
+    // แผนที่เดิมถูกซ่อน (display:none) → แจ้งขนาดใหม่แล้วจัดมุมมองแบบทันที (ไม่ใช้แอนิเมชัน กันค้าง zoom เดิม)
+    setTimeout(() => {
+      map.invalidateSize();
+      if (routeLayer) {
+        const b = routeLayer.getBounds();
+        map.setView(b.getCenter(), map.getBoundsZoom(b, false, L.point(52,52)), { animate:false });
+      }
+    }, 150);
+  } catch (e) {
+    status.className = "err"; status.textContent = "✕ " + e.message;
+  } finally {
+    btn.disabled = false;
+    if (shareMode) { const ss = $("shareStatus"); ss.textContent = status.textContent; ss.className = status.className; }
+  }
+});
+
+function renderSummary(sch, km, n, stay, cfg, origin) {
+  const totalKm = km.reduce((a,b) => a+b, 0);
+  const driveMin = km.reduce((a,b) => a + b / cfg.speed * 60, 0);
+  const lunchMin = sch.events.filter(e => e.type === "lunch").reduce((a,e) => a + (e.end - e.start), 0);
+
+  // อัปเดต pill บนแถบหัว
+  $("pillDep").textContent = "🛫 ออก " + fmt(cfg.dep) + " น.";
+  $("pillTarget").textContent = "🎯 ออกโรงเรียนสุดท้าย " + fmt(cfg.target) + " น.";
+  $("pillTarget").style.display = cfg.target ? "" : "none";
+
+  // หัวตารางเวลา: ผู้ตรวจเยี่ยม + สรุปแผน
+  const inspectors = INSPECTORS.map(s => s.trim()).filter(Boolean);
+  const names = inspectors.length ? inspectors.map(esc).join(" · ") : "<i>ไม่ระบุ</i>";
+  const dateRow = $("travelDate").value
+    ? `<div class="sh-row"><span class="sh-lbl">วันเดินทาง</span><span class="sh-val">📅 ${thaiDate($("travelDate").value)}</span></div>` : "";
+  $("schedHead").innerHTML = `
+    <div class="sh-row"><span class="sh-lbl">ผู้ตรวจเยี่ยม</span><span class="sh-val">${names}</span></div>
+    ${dateRow}
+    <div class="sh-row"><span class="sh-lbl">สรุปแผน</span><span class="sh-val"><b>${esc(origin.name)}</b> → โรงเรียน <b>${n}</b> แห่ง → กลับต้นทาง · <b>${totalKm.toFixed(1)} กม.</b> · ${fmt(cfg.dep)}–${fmt(sch.end)} น.</span></div>`;
+
+  // ฮีโร่หน้าแชร์
+  $("heroInspectors").innerHTML = inspectors.map(x => `<span>${x}</span>`).join("") || "<span>ไม่ระบุ</span>";
+  $("heroRoute").textContent = origin.name + " → โรงเรียน " + n + " แห่ง → กลับต้นทาง";
+  $("heroChips").innerHTML =
+    ($("travelDate").value ? `<span>📅 ${thaiDate($("travelDate").value)}</span>` : "") +
+    `<span>🛫 ออก ${fmt(cfg.dep)} น.</span>` +
+    `<span>🏁 กลับ ${fmt(sch.end)} น.</span>` +
+    `<span>🛣 ${totalKm.toFixed(1)} กม.</span>` +
+    `<span>🏫 ${n} โรงเรียน</span>` +
+    `<span>🍱 พักกลางวัน ${Math.round(lunchMin)} นาที</span>` +
+    (cfg.target ? `<span>🎯 ออกโรงเรียนสุดท้าย ${fmt(cfg.target)} น.</span>` : "");
+  $("summary").innerHTML = `
+    <div class="stat"><span class="ic">🛣</span><div><b>${totalKm.toFixed(1)} กม.</b><span>ระยะทางรวม</span></div></div>
+    <div class="stat"><span class="ic">🚗</span><div><b>${fmt(driveMin)}</b><span>เวลาขับรวม</span></div></div>
+    <div class="stat"><span class="ic">🏫</span><div><b>${n} × ${Math.round(stay)} นาที</b><span>อยู่ที่โรงเรียน</span></div></div>
+    <div class="stat"><span class="ic">🍱</span><div><b>${Math.round(lunchMin)} นาที</b><span>พักกลางวัน</span></div></div>
+    <div class="stat"><span class="ic">🏁</span><div><b>${fmt(cfg.dep)} – ${fmt(sch.end)}</b><span>ออก – กลับถึงต้นทาง</span></div></div>`;
+}
+
+function renderSchedule(events, cfg) {
+  let rows = `<tr><th style="width:44px">#</th><th style="width:130px">เวลา</th><th>รายการ</th><th style="width:92px">ระยะทาง</th><th style="width:92px">เวลาขับ</th><th style="width:110px">อยู่ที่โรงเรียน</th></tr>`;
+  let i = 0;
+  for (const e of events) {
+    i++;
+    const time = fmt(e.start) + " – " + fmt(e.end);
+    if (e.type === "travel")
+      rows += `<tr><td><span class="step">${i}</span></td><td class="time">${time}</td><td><span class="badge drive">ขับรถ</span><span class="act">${esc(e.label)}</span></td><td class="num">${e.km.toFixed(1)} กม.</td><td class="num">${Math.round(e.end - e.start)} นาที</td><td class="num">—</td></tr>`;
+    else if (e.type === "stay")
+      rows += `<tr class="tr-visit"><td><span class="step" style="background:var(--primary)">${i}</span></td><td class="time">${time}</td><td><span class="badge visit">เยี่ยมโรงเรียน</span><span class="act">${esc(e.label)}</span></td><td class="num">—</td><td class="num">—</td><td class="num"><b>${Math.round(e.minutes)}</b> นาที</td></tr>`;
+    else
+      rows += `<tr class="tr-lunch"><td><span class="step" style="background:var(--amber)">${i}</span></td><td class="time">${time}</td><td><span class="badge lunch">พักกลางวัน</span></td><td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>`;
+  }
+  $("schedule").innerHTML = rows;
+
+  // ไทม์ไลน์สำหรับหน้าแชร์ (landing style)
+  let tl = "";
+  for (const e of events) {
+    const time = fmt(e.start) + " – " + fmt(e.end);
+    const cls = e.type === "stay" ? "visit" : e.type;
+    const badge = e.type === "travel" ? '<span class="badge drive">ขับรถ</span>'
+      : e.type === "stay" ? '<span class="badge visit">เยี่ยมโรงเรียน</span>'
+      : ""; // ชื่อกิจกรรมพักกลางวันมีใน label แล้ว ไม่ซ้ำ badge
+    const meta = e.type === "travel" ? `<span>${e.km.toFixed(1)} กม.</span><span>${Math.round(e.end - e.start)} นาที</span>`
+      : e.type === "stay" ? `<span><b>${Math.round(e.minutes)}</b> นาที</span>` : "";
+    tl += `<li class="tl-item ${cls}"><span class="tl-dot"></span><div class="tl-card">` +
+      `<span class="tl-time">${time}</span>` +
+      `<span class="tl-act">${badge}${esc(e.label)}</span>` +
+      `<span class="tl-meta">${meta}</span></div></li>`;
+  }
+  $("shareTimeline").innerHTML = `<ol class="tl">${tl}</ol>`;
+}
+
+function renderLinks(origin, order, schools) {
+  const pts = [origin, ...order.map(i => schools[i]), origin];
+  const osm = "https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=" +
+    pts.map(p => p.lat + "," + p.lon).join(";");
+  const g = "https://www.google.com/maps/dir/?api=1&origin=" + pts[0].lat + "," + pts[0].lon +
+    "&destination=" + pts[pts.length-1].lat + "," + pts[pts.length-1].lon +
+    "&waypoints=" + pts.slice(1,-1).map(p => p.lat + "," + p.lon).join("|") + "&travelmode=driving";
+  $("links").innerHTML =
+    `<span class="lbl">เปิดเส้นทางในแผนที่:</span>` +
+    `<a href="${osm}" target="_blank" rel="noopener">🌍 OpenStreetMap</a>` +
+    `<a href="${g}" target="_blank" rel="noopener">📍 Google Maps</a>`;
+}
+
+/* ---------- share mode: เปิดลิงก์แชร์ → หน้าตารางเวลาแบบอ่านอย่างเดียว ---------- */
+function startShareView() {
+  document.body.classList.add("share-mode");
+  $("shareHero").style.display = "block";
+  $("calc").click(); // คำนวณอัตโนมัติจากข้อมูลที่ฝังมากับลิงก์
+}
+if (shareMode) startShareView();
+window.addEventListener("hashchange", () => {
+  // บาง environment แนบ hash ทีหลังหลังโหลดหน้า → ตรวจซ้ำเมื่อ hash เปลี่ยน
+  const p = parseShare();
+  if (p && !shareMode) {
+    shareMode = true;
+    applyState(p);
+    renderInspectors();
+    renderSchools();
+    startShareView();
+  }
+});
+$("copyShare").addEventListener("click", async () => {
+  const url = location.origin + location.pathname + location.search + "#share=" + encodeShare();
+  const btnEl = $("copyShare");
+  try {
+    await navigator.clipboard.writeText(url);
+    const old = btnEl.textContent;
+    btnEl.textContent = "✓ คัดลอกแล้ว";
+    setTimeout(() => { btnEl.textContent = old; }, 2000);
+  } catch (e) { prompt("คัดลอกลิงก์นี้เพื่อแชร์ให้ผู้อื่น:", url); }
+});
+$("printPdf").addEventListener("click", () => window.print());
+$("openEdit").addEventListener("click", () => {
+  shareMode = false;
+  history.replaceState(null, "", location.pathname + location.search);
+  document.body.classList.remove("share-mode");
+  $("shareHero").style.display = "none";
+});
+</script>
+</body>
+</html>
