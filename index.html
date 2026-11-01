@@ -135,8 +135,8 @@
     background:var(--primary-l); border:1px solid #bfdbfe; color:#1e40af;
     border-radius:10px; padding:10px 13px; font-size:13px; font-weight:500;
   }
-  #geoStatus { font-size:12px; color:var(--muted); }
-  #geoStatus:empty { display:none; }
+  #geoStatus, #geoOriginStatus { font-size:12px; color:var(--muted); }
+  #geoStatus:empty, #geoOriginStatus:empty { display:none; }
 
   /* ===== School list ===== */
   .schools { display:flex; flex-direction:column; gap:8px; }
@@ -448,9 +448,10 @@
         <div class="field">
           <label>ค้นพิกัดต้นทางจากชื่อ</label>
           <div class="input-group">
-            <input type="text" id="originQuery" placeholder="เช่น สพป.สตูล ต.คลองขุด อ.เมืองสตูล">
+            <input type="text" id="originQuery" placeholder="เช่น คลองขุด เมืองสตูล">
             <button class="ghost" id="geoOrigin">ค้น</button>
           </div>
+          <div id="geoOriginStatus"></div>
         </div>
 
         <div class="field" style="margin-top:14px">
@@ -672,26 +673,25 @@ function renderSchools() {
       }));
     tr.querySelector(".geo").addEventListener("click", async () => {
       const btn = tr.querySelector(".geo"); btn.disabled = true;
-      $("geoStatus").textContent = "🔍 กำลังค้นพิกัด…";
+      const st = $("geoStatus");
+      const name = tr.querySelector('[data-f="name"]').value.trim();
+      if (!name) { st.textContent = "พิมพ์ชื่อโรงเรียนก่อนกดค้น"; btn.disabled = false; return; }
+      st.textContent = "🔍 กำลังค้นพิกัด…";
       try {
-        const q = tr.querySelector('[data-f="name"]').value + " ประเทศไทย";
-        const r = await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + encodeURIComponent(q));
-        const j = await r.json();
-        if (!j.length) throw new Error("not found");
-        const newLat = parseFloat(j[0].lat), newLon = parseFloat(j[0].lon);
-        const origin = { lat: parseFloat($("originLat").value) || 6.64, lon: parseFloat($("originLon").value) || 100.07 };
-        const far = haversine(origin, { lat:newLat, lon:newLon });
-        if (far > 80 && !confirm("พิกัดที่ได้อยู่ห่างต้นทาง " + Math.round(far) + " กม.\n(" + j[0].display_name.slice(0,90) + ")\n\nใช้พิกัดนี้หรือไม่?")) {
-          $("geoStatus").textContent = "ยกเลิก — ไม่ได้เปลี่ยนพิกัด";
-          btn.disabled = false;
+        const oLat = parseFloat($("originLat").value) || 6.64, oLon = parseFloat($("originLon").value) || 100.07;
+        const hit = await geoSearch(name, vbOf(oLat, oLon));
+        const newLat = parseFloat(hit.lat), newLon = parseFloat(hit.lon);
+        const far = haversine({ lat:oLat, lon:oLon }, { lat:newLat, lon:newLon });
+        if (far > 80 && !confirm("พิกัดที่ได้อยู่ห่างต้นทาง " + Math.round(far) + " กม.\n(" + hit.display_name.slice(0,90) + ")\n\nใช้พิกัดนี้หรือไม่?")) {
+          st.textContent = "ยกเลิก — ไม่ได้เปลี่ยนพิกัด";
           return;
         }
         s.lat = newLat; s.lon = newLon;
         tr.querySelector('[data-f="lat"]').value = s.lat.toFixed(6);
         tr.querySelector('[data-f="lon"]').value = s.lon.toFixed(6);
         saveState();
-        $("geoStatus").textContent = "✓ " + j[0].display_name.slice(0,80);
-      } catch (e) { $("geoStatus").textContent = "ไม่พบพิกัด: " + e.message; }
+        st.textContent = "✓ " + hit.display_name.slice(0,80) + ($("result").classList.contains("on") ? " · กด 'คำนวณเส้นทาง' เพื่ออัปเดต" : "");
+      } catch (e) { st.textContent = geoErrText(e); }
       finally { btn.disabled = false; }
     });
     tr.querySelector(".del").addEventListener("click", () => { DEFAULT_SCHOOLS.splice(i,1); renderSchools(); });
@@ -707,19 +707,51 @@ $("addSchool").addEventListener("click", () => {
 });
 renderSchools();
 
+/* ---------- ค้นพิกัดจากชื่อ (Nominatim) ---------- */
+function vbOf(lat, lon) { // เขต bias ~±1.2° รอบพิกัดปัจจุบัน ให้ผลใกล้ต้นทางขึ้น
+  return [lon - 1.2, lat + 1.2, lon + 1.2, lat - 1.2].join(",");
+}
+async function geoSearch(rawQ, vb) {
+  const q = rawQ.trim();
+  const tries = [q + " ประเทศไทย", q]; // ลองต่อท้ายประเทศก่อน แล้วค่อยไม่ต่อท้าย
+  for (let k = 0; k < tries.length; k++) {
+    if (k) await new Promise(res => setTimeout(res, 1100)); // เคารพ rate limit 1 คำขอ/วินาทีของ Nominatim
+    const url = "https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=th&viewbox=" + vb + "&bounded=0&q=" + encodeURIComponent(tries[k]);
+    const r = await fetch(url, { headers: { "Accept-Language": "th" } });
+    if (!r.ok) throw new Error(r.status === 429 ? "RATE" : "HTTP" + r.status);
+    const j = await r.json();
+    if (j.length) return j[0];
+  }
+  throw new Error("NOTFOUND");
+}
+function geoErrText(e) {
+  const m = e && e.message;
+  if (m === "NOTFOUND") return "❌ ไม่พบใน OpenStreetMap — ลองระบุ อำเภอ/จังหวัด ด้วย เช่น 'คลองขุด เมืองสตูล'";
+  if (m === "RATE") return "⏳ ค้นถี่เกินไป — รอสักครู่แล้วลองใหม่";
+  if (String(m).startsWith("HTTP")) return "❌ บริการค้นพิกัดไม่พร้อม (" + m + ") — ลองใหม่ภายหลัง";
+  return "❌ ค้นพิกัดไม่สำเร็จ: " + m;
+}
+
 $("geoOrigin").addEventListener("click", async () => {
   const btn = $("geoOrigin"); btn.disabled = true;
-  $("geoStatus").textContent = "🔍 กำลังค้นพิกัดต้นทาง…";
+  const st = $("geoOriginStatus");
+  const q = $("originQuery").value.trim();
+  if (!q) { st.textContent = "พิมพ์ชื่อสถานที่ต้นทางก่อนกดค้น"; btn.disabled = false; return; }
+  st.textContent = "🔍 กำลังค้นพิกัดต้นทาง…";
   try {
-    const q = $("originQuery").value.trim() + " ประเทศไทย";
-    const r = await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + encodeURIComponent(q));
-    const j = await r.json();
-    if (!j.length) throw new Error("not found");
-    $("originLat").value = parseFloat(j[0].lat).toFixed(6);
-    $("originLon").value = parseFloat(j[0].lon).toFixed(6);
+    const curLat = parseFloat($("originLat").value) || 6.64, curLon = parseFloat($("originLon").value) || 100.07;
+    const hit = await geoSearch(q, vbOf(curLat, curLon));
+    const nLat = parseFloat(hit.lat), nLon = parseFloat(hit.lon);
+    const far = haversine({ lat:curLat, lon:curLon }, { lat:nLat, lon:nLon });
+    if (far > 80 && !confirm("พิกัดใหม่อยู่ห่างพิกัดปัจจุบัน " + Math.round(far) + " กม.\n(" + hit.display_name.slice(0,90) + ")\n\nใช้พิกัดนี้แทนต้นทางหรือไม่?")) {
+      st.textContent = "ยกเลิก — ไม่ได้เปลี่ยนต้นทาง";
+      return;
+    }
+    $("originLat").value = nLat.toFixed(6);
+    $("originLon").value = nLon.toFixed(6);
     saveState();
-    $("geoStatus").textContent = "✓ " + j[0].display_name.slice(0,80);
-  } catch (e) { $("geoStatus").textContent = "ไม่พบพิกัด: " + e.message; }
+    st.textContent = "✓ " + hit.display_name.slice(0,80);
+  } catch (e) { st.textContent = geoErrText(e); }
   finally { btn.disabled = false; }
 });
 
